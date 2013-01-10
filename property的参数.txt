@@ -1,0 +1,41 @@
+ @property和@synthesize总是配对使用的，功能是让编译器自动生成一个与数据成员相关的读写方法，类似与Java的setter/getter方法。
+
+@property的参数有三种类型：
+
+读写属性： (readwrite/readonly)
+setter语意：(assign/retain/copy）
+原子性： (atomicity/nonatomic)
+
+读写属性即设置数据成员是可写还是只读，默认是readwrite，如果是readonly则相当于不生成setter方法。
+原子性即设置数据成员是否可以多线程访问，默认nonatomic，这样性能更好。
+
+关于setter语意，举个例子:
+
+NSString *str = [[NSString alloc] initWithString:@’abc’];
+上面一段代码会执行以下两个动作:
+1 在堆上分配一段内存用来存储@’abc’, 比如:内存地址为0X1111 内容为’abc’
+2 在栈上分配一段内存用来存储str, 比如:地址为0XAAAA 内容自然为0X1111
+
+下面分别看下(assign,retain,copy):
+
+1.assign的情况:NSString *newStr = [str assign];
+此时newStr和str完全相同,地址都是0XAAAA ,内容为0X1111 ,即newStr只是str的别名,对任何一个操作就等于对另一个操作。因此retainCount不需要增加.
+2.retain的情况：NSString * newStr = [str retain];
+此时newStr的地址不再为0XAAAA,可能为0XAABB,但是内容依然为0X1111.因此newStr和str都可以管理’abc’所在的内存。因此 retainCount需要增加1.
+3.copy的情况：NSString * newStr = [str copy];
+此时会在堆上重新开辟一段内存存放@’abc’,比如0X1122,内容为@’abc’,同时会在栈上为newStr分配空间,比如地址:0XAACC,内容为0X1122, 因此retainCount增加1供newStr来管理0X1122这段内存.
+
+从上面的例子可以看出：
+
+assign: 简单赋值，不更改索引计数,对基础数据类型(NSInteger)和C数据类型(int, float, double, char, bool等)
+copy:建立一个索引计数为1的对象，然后释放旧对象,对NSString
+retain:释放旧的对象，将旧对象的值赋予输入对象，再提高输入对象的索引计数为1,对其他NSObject和其子类
+retain是指针拷贝，copy 是内容拷贝
+
+当类拥有mutable子类时，你应该使用copy，而不是retain。例如：NSAArray，NSSet，NSDictionary，NSData的，NSCharacterSet，NSIndexSet，NSString。
+
+从setter方法的角度来理解就是这样的：
+
+1.assign，setter方法直接赋值，不进行任何retain操作，为了解决原类型与环循引用问题
+2.retain，setter方法对参数进行release旧值再retain新值，所有实现都是这个顺序(CC上有相关资料)
+3.copy，setter方法进行Copy操作，与retain处理流程一样，先旧值release，再Copy出新的对象，retainCount为1。这是为了减少对上下文的依赖而引入的机制。 
